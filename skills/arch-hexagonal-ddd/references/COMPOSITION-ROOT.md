@@ -1,89 +1,33 @@
-# Composition Root
+# Composition Responsibility
 
-## Role
+Use `../SKILL.md` as the canonical policy. Composition is the responsibility of selecting concrete implementations, wiring dependencies, applying configuration, and managing lifecycle at the system edge. It keeps those decisions out of business policy; it does not require a directory, container framework, application factory, or one central file.
 
-The composition root (`bootstrap/`) is the ONLY place that:
+## What Composition Owns
 
-- Knows all layers exist
-- Imports from adapters, application, domain, and ports
-- Creates concrete instances and wires dependencies
-- Is NOT imported by any other layer
+- selecting implementations for the current runtime or deployment;
+- constructing dependency graphs and connecting entry points;
+- configuration validation and environment-specific choices;
+- resource creation, sharing, scoping, startup, shutdown, and cleanup;
+- transaction, request, job, or message lifecycle integration where applicable;
+- technical error translation and framework registration at an appropriate edge.
 
-## File Organization
+Composition may be centralized or distributed across ecosystem-owned entry points. Keep each composition point visible and free of business decisions. Avoid letting runtime service locators or global state hide dependencies from consumers.
 
-| File | Responsibility |
-| ---- | -------------- |
-| `http_application.py` | App creation, settings, middleware, identity resolver |
-| `{context}_dependency.py` | Per-context factory building use cases from adapters |
-| `api_router.py` | Top-level route composition (includes all context routers) |
-| `database_session_dependency.py` | Session factory and lifecycle |
-| `http_error_handlers.py` | Exception → HTTP response mapping |
+## Choose Structure From Pressure
 
-## Typed Containers (Mandatory)
+| Evidence | Response |
+| --- | --- |
+| Wiring is small and stable | Keep it direct. |
+| Distinct runtimes or capabilities have independent graphs | Use separate cohesive composition points. |
+| Resource lifetimes differ | Make scopes and ownership explicit. |
+| Construction repeats and drifts | Extract the smallest reusable composition helper. |
+| A dependency-injection tool reduces lifecycle or graph complexity | Use it at the edge without leaking it into business policy. |
+| Factories or containers only forward constructors | Remove the ceremony. |
 
-Never pass use cases as `dict[str, Any]`. Create a frozen dataclass:
+Typed containers, immutable holders, generated wiring, factories, and dependency-injection libraries are optional implementation techniques. Adopt them only when they improve static guarantees, navigation, lifecycle control, or replacement cost.
 
-```python
-@dataclass(frozen=True, slots=True)
-class AdminUseCases:
-    list_users: ListUsers
-    list_roles: ListRoles
-    create_role: CreateRole
-    replace_user_roles: ReplaceUserRoles
-    user_repository: AccessUserRepository  # for actor resolution
-    identity: IdentityPort                 # for operation ID generation
-```
+## Verification
 
-**Benefits:**
+After a contract or constructor changes, trace affected consumers and composition points. Verify that required dependencies are supplied, lifetimes match usage, resources are released, configuration failures are visible, and representative entry points still execute. Scope testing to the change and expand it when shared wiring or lifecycle behavior creates broader risk.
 
-- Compile-time type checking (no `use_cases["typo"]` bugs)
-- IDE autocompletion
-- Explicit dependency documentation
-- Frozen = immutable after construction
-
-## Factory Pattern
-
-Each context dependency file follows this pattern:
-
-```python
-def admin_use_case_dependency(
-    session_provider: SessionProvider,
-) -> Callable[..., AdminUseCases]:
-    """Build request-scoped admin use cases."""
-    
-    clock = SimpleClock()
-    identity = SimpleIdentity()
-
-    def provide(session: Annotated[Session, Depends(session_provider)]) -> AdminUseCases:
-        user_repo = UserRepositoryAdapter(session)
-        role_repo = RoleRepositoryAdapter(session)
-        # ... wire all adapters and use cases
-        return AdminUseCases(
-            list_users=ListUsers(user_repository=user_repo),
-            # ...
-        )
-
-    return provide
-```
-
-## When to Split
-
-Extract a `_compose_X` function into its own `{context}_dependency.py` when:
-
-- The function exceeds ~100 lines
-- A new bounded context needs its own wiring
-- The function returns multiple unrelated values
-- You see duplicate Clock/Identity instances across factories
-
-## Shared Infrastructure
-
-Clock and Identity generators that appear in multiple factories should be extracted to a shared location (e.g., `infra/clock.py`, `infra/identity.py`) rather than duplicated as private classes in each factory.
-
-## Wiring Completeness Check
-
-After ANY port/repository change:
-
-1. Grep for the old method name across ALL of `bootstrap/`
-2. Check nested factories (e.g., auth factory that builds access use cases)
-3. Verify the typed container includes new parameters
-4. Run the full test suite — missing wiring = runtime `TypeError`
+Review composition as code that evolves: split or merge it according to cohesion, ownership, runtime boundaries, and change pressure rather than file size or bounded-context count.

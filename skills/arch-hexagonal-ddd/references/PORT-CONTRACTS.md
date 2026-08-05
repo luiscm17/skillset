@@ -1,77 +1,39 @@
 # Port Contracts
 
-## The Rule
+Use `../SKILL.md` as the canonical policy. A port is useful when a business-facing capability crosses a meaningful ownership, volatility, process, or technology seam. It is not required for every class, dependency, entity, or data operation.
 
-Ports define EXACT types that cross boundaries. They make invalid states unrepresentable at the type level.
+## Introduce a Port When It Earns Its Cost
 
-## Precision Requirements
+Consider a port when the caller needs a stable capability while implementations vary, infrastructure replacement matters, independent testing needs a controllable seam, or another owner supplies the behavior. Keep a direct dependency when both sides evolve together and an abstraction would only mirror one implementation.
 
-| Requirement | Bad | Good |
-| ----------- | --- | ---- |
-| Typed returns | `def list_recent() -> list` | `def list_recent() -> list[AuditEntry]` |
-| No false Optional | `name: str | None` (always set) | `name: str` |
-| No dict returns | `-> dict` | `-> AuditEntry` (frozen dataclass) |
-| No Any | `-> Any` | `-> CursorResult[Any]` (narrowed) |
-| No type suppression | `# type: ignore` | Fix the contract |
+Define the contract from consumer needs rather than copying a vendor API. A port can be an interface, protocol, function, message, schema, callback, or another ecosystem-native contract.
 
-## Read Models in Ports
+## Contract Semantics
 
-When a port needs to return structured data from a query (not an entity), define a frozen read model in the domain layer:
+Decide and document only what consumers need:
 
-```python
-# domain/audit.py
-@dataclass(frozen=True, slots=True)
-class AccessAuditEntry:
-    audit_id: str
-    operation_id: str
-    change_kind: str
-    subject_type: str
-    subject_id: str
-    performed_by_user_id: str | None
-    reason: str | None
-    occurred_at: datetime
-```
+- operation meaning, preconditions, and observable effects;
+- success, absence, rejection, retry, and failure semantics;
+- consistency, ordering, idempotency, and timeout expectations where relevant;
+- synchronous, asynchronous, streaming, or message-based interaction;
+- cancellation, pagination, batching, and backpressure when demanded by scale;
+- type precision and compatibility guarantees supported by the project;
+- ownership, versioning, and evolution policy.
 
-The port then returns this typed read model:
+Do not force one universal choice for nullable results, exceptions, result types, error taxonomies, strict typing, or read-model placement. Do not expose concrete infrastructure types when doing so makes business policy depend on that infrastructure. Boundary-specific representations are valid when they preserve meaning and reduce coupling.
 
-```python
-# ports/audit.py
-class AccessAuditRepository(Protocol):
-    def list_recent(self, *, limit: int = 50) -> list[AccessAuditEntry]: ...
-```
+## Granularity
 
-## Protocol Definition Pattern
+Prefer a cohesive capability contract. Split when consumers need independent evolution, permissions, performance characteristics, lifecycle, or ownership. Merge contracts that always change together or require clients to coordinate fragments of one operation.
 
-```python
-from typing import Protocol
+Repositories are one possible persistence port. Introduce them around a meaningful consistency or ownership boundary, not per entity by rule. Their methods should reflect required semantics; `save`, create/update operations, queries, and unit-of-work behavior are contextual choices.
 
-class UserRepository(Protocol):
-    """Resolve and persist user state."""
+## Review Questions
 
-    def find_by_id(self, user_id: str) -> User | None: ...
-    def find_by_subject(self, subject: str) -> User | None: ...
-    def save(self, user: User) -> None: ...
-    def list_all(self) -> list[User]: ...
-```
-
-**Rules for protocols:**
-
-- One protocol per file
-- Methods use domain types only (never ORM, never framework)
-- `None` return means "not found" (never raise for missing)
-- `save()` handles both create and update (adapter decides)
-- Docstrings describe business intent, not implementation
-
-## Type Suppression is an Architecture Error
-
-Every `# type: ignore` signals one of:
-
-| Cause | Real Fix |
-| ----- | -------- |
-| Framework kwarg not in stubs | `**kwargs: dict[str, Any]` spread |
-| Nullable after truthy check | Assign to local variable first |
-| Union not narrowed | `assert` or guard clause |
-| Generic result type | Annotate with specific type |
-| Third-party untyped return | `cast()` with known runtime type |
-
-**Policy:** Zero type suppressions in source code (tests are exempt). Fix the contract, not the symptom.
+- What concrete seam or change pressure justifies this port?
+- Whose needs define the contract?
+- Does it hide volatility or merely rename an implementation API?
+- Are absence and errors unambiguous to all consumers?
+- Does interaction style match runtime and consistency needs?
+- Is the contract cohesive, minimal, and evolvable?
+- Would removing it reduce indirection without sacrificing independence or testability?

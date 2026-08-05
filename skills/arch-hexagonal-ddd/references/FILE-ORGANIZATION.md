@@ -1,98 +1,70 @@
-# File Organization
+# Evolutionary Code Organization
 
-## Core Principle: One File Per Concern
+Organize code to expose business capabilities, ownership, and dependency boundaries. Do not infer architecture quality from directory names, file counts, or a universal project tree. The canonical policies in `../SKILL.md` take precedence.
 
-Every layer follows the same rule: one file per meaningful unit.
+## Architectural Properties
 
-| Layer | Unit | Naming Convention | Example |
-| ----- | ---- | ----------------- | ------- |
-| `domain/` | One file per aggregate/concept | `{aggregate}.py` | `users.py`, `roles.py`, `scopes.py` |
-| `ports/` | One file per port protocol | `{aggregate}.py` | `users.py`, `roles.py`, `audit.py` |
-| `application/` | One file per use case | `{verb}_{noun}.py` | `create_role.py`, `deactivate_user.py` |
-| `adapters/persistence/` | One file per adapter class | `{aggregate}_repository.py` | `user_repository.py`, `role_repository.py` |
-| `adapters/http/` | Grouped by router scope | descriptive | `router.py`, `models.py`, `error_handlers.py` |
-| `bootstrap/` | One file per context factory | `{context}_dependency.py` | `access_admin_dependency.py` |
+Prefer an organization where:
 
-## When to Split
+- related behavior and data change together;
+- business capabilities are discoverable without tracing framework internals;
+- dependencies cross explicit boundaries for a concrete reason;
+- infrastructure can change without rewriting business policy;
+- independently evolving areas can be tested and maintained independently;
+- navigation cost remains proportional as the codebase and team grow.
 
-A file needs splitting when:
+These properties may be implemented with packages, modules, namespaces, components, crates, assemblies, folders, or language-specific constructs. Names such as `domain`, `ports`, `adapters`, `application`, and `infrastructure` are optional vocabulary, not architectural requirements.
 
-- It exceeds ~200 lines AND contains multiple classes/protocols
-- It contains unrelated concerns (e.g., user + role + audit adapters)
-- Multiple developers frequently edit different sections of the same file
+## Choosing Module Boundaries
 
-A file does NOT need splitting just because it's long if it has a single cohesive responsibility.
+Use observed forces rather than fixed templates:
 
-## Target Directory Structure
+| Signal | Consider |
+| --- | --- |
+| Code changes for the same business reason | Keep it within one cohesive module or capability. |
+| A module changes for unrelated reasons | Split along responsibility, ownership, or capability boundaries. |
+| Multiple areas require different release or scaling behavior | Introduce a stronger module or deployment boundary if the operational benefit justifies it. |
+| Framework details dominate navigation | Move business-facing entry points and policy into discoverable modules. |
+| Cross-module imports grow without clear direction | Clarify ownership, expose a deliberate contract, or merge an artificial boundary. |
+| A boundary adds forwarding code but no isolation | Remove or simplify it. |
+| Parallel teams repeatedly conflict in the same area | Revisit ownership and capability boundaries before adding layers. |
 
-```text
-src/
-├── shared/                         # Shared kernel (NOT a bounded context)
-│   └── identity.py
-├── {context}/                      # One bounded context
-│   ├── domain/
-│   │   ├── {aggregate}.py          # Entity + value objects for that aggregate
-│   │   ├── errors.py               # Domain errors
-│   │   └── audit.py                # Read models (if needed)
-│   ├── ports/
-│   │   ├── __init__.py             # Re-exports all ports
-│   │   ├── users.py                # One protocol per file
-│   │   ├── roles.py
-│   │   ├── assignments.py
-│   │   ├── clock.py
-│   │   └── transaction.py
-│   ├── application/
-│   │   ├── __init__.py
-│   │   ├── create_role.py          # One use case per file
-│   │   ├── deactivate_user.py
-│   │   ├── containers.py           # Typed use case container
-│   │   └── dto.py                  # Shared command/result DTOs
-│   └── adapters/
-│       ├── persistence/
-│       │   ├── user_repository.py  # One adapter per file
-│       │   ├── role_repository.py
-│       │   ├── records.py          # ORM records/table models
-│       │   └── transaction.py
-│       ├── http/
-│       │   ├── router.py
-│       │   ├── models.py           # Request/Response schemas
-│       │   └── error_handlers.py
-│       └── {acl_adapter}.py        # Anti-corruption layer adapters
-└── bootstrap/
-    ├── http_application.py         # Composition root
-    ├── {context}_dependency.py     # Per-context factory
-    ├── api_router.py               # Route composition
-    └── database_session_dependency.py
-```
+## Splitting and Merging
 
-## Backward Compatibility After Split
+Split a file or module when it contains independently changing responsibilities, hides distinct business concepts, creates ownership conflicts, or makes focused testing and navigation materially harder.
 
-When splitting a fat file:
+Keep it together when its parts enforce one invariant, evolve together, and separating them would create indirection without independent value.
 
-1. Create the individual files with the extracted classes
-2. Replace the original file content with re-exports only
-3. Existing consumers continue working (import path unchanged)
-4. New code imports from the specific module directly
+Merge modules when their boundary is accidental, their contracts merely mirror each other, or they cannot evolve independently. Architecture includes removing boundaries that no longer earn their cost.
 
-```python
-# Original file (now a re-export shim)
-"""Backward-compatible re-exports from split modules."""
-from module.ports.users import UserRepository as UserRepository
-from module.ports.roles import RoleRepository as RoleRepository
-```
+Do not use line count, number of classes, or one-unit-per-file as standalone decisions. They are local style policies only when the project explicitly adopts them.
 
-## Package `__init__.py` Convention
+## Scaling the Organization
 
-Each layer's `__init__.py` re-exports all public types for convenience:
+Prefer the smallest boundary that protects the required independence:
 
-```python
-"""Access Control ports."""
-from access.ports.users import AccessUserRepository as AccessUserRepository
-from access.ports.roles import RoleRepository as RoleRepository
-from access.ports.assignments import AssignmentRepository as AssignmentRepository
-```
+1. cohesive file or language unit;
+2. module or package with an intentional public surface;
+3. business-capability or bounded-context boundary;
+4. independently deployable component only when operational independence is required.
 
-This allows both:
+Do not jump to a stronger boundary solely because the project is expected to grow. Strengthen boundaries when coupling, ownership, release cadence, reliability, data ownership, or scaling requirements provide evidence.
 
-- `from access.ports import AccessUserRepository` (convenient)
-- `from access.ports.users import AccessUserRepository` (explicit)
+When growth changes those forces, reorganize incrementally. Preserve compatibility only where consumers require it; do not retain obsolete namespaces or re-export layers by default.
+
+## Language and Framework Adaptation
+
+Follow the ecosystem's conventional discovery and packaging mechanisms unless they violate an architectural invariant. A language may favor feature modules, packages, namespaces, assemblies, crates, or flat files; the skill must adapt rather than translate every project into a Python-style tree.
+
+Framework-owned entry points may remain where the framework expects them. Keep business decisions behind those entry points without inventing duplicate wrappers that add no isolation.
+
+## Review Questions
+
+- Can a maintainer find a business capability without knowing the framework first?
+- Does each boundary protect ownership, an invariant, volatility, or independent evolution?
+- Are dependencies deliberate and directionally clear?
+- Can modules be split or merged without changing unrelated behavior?
+- Is an abstraction solving current pressure or only anticipating hypothetical growth?
+- Would a simpler organization preserve the same architectural properties?
+
+Report tradeoffs and evidence. Never prescribe a full directory tree unless the user explicitly asks for an ecosystem-specific example.

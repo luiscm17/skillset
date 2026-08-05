@@ -1,83 +1,74 @@
-# Refactoring Recipes
+# Evidence-Driven Refactoring Recipes
 
-## Recipe 1: Moving a Type to Shared Kernel
+Select a recipe only after discovery and keep `../SKILL.md` canonical. Each recipe starts with evidence, preserves behavior, and ends at the smallest reversible improvement.
 
-**When:** A type is imported by 2+ bounded contexts directly.
+## Isolate Infrastructure Leakage
 
-1. Create `shared/{module}.py` with the type definition
-2. Update original file to re-export from shared (backward compat)
-3. Update all direct consumers to import from shared
-4. Document the new shared package in project docs
+**Evidence:** A business rule depends on a concrete technical API, or changing infrastructure forces unrelated policy changes.
 
-**Pitfall:** Check ALL consumers including test files and nested bootstrap factories.
+1. Characterize the business-facing behavior with a focused test.
+2. Identify the smallest capability the policy needs.
+3. Move translation to the technical edge or introduce a narrow consumer-owned contract.
+4. Migrate one path and verify it before expanding.
 
-## Recipe 2: Splitting a Fat File
+Stop if the dependency is intentionally technology-specific or the abstraction adds no independence.
 
-**When:** A file has 200+ lines with multiple unrelated classes.
+## Move a Proven Invariant
 
-1. Create individual files with extracted classes (keep same imports)
-2. Move each class to its file, adjusting only its specific imports
-3. Replace original file content with re-exports only
-4. Update `__init__.py` to import from new locations
-5. Run tests — all import paths still resolve via re-exports
-6. New code imports from specific modules; old code works unchanged
+**Evidence:** Multiple callers duplicate or bypass the same business rule.
 
-**Pitfall:** Don't forget to move `@staticmethod` helpers that belong to the moved class.
+1. Name the invariant and its natural owner.
+2. Add tests for accepted and rejected behavior.
+3. Move only the decision and required state behind that owner.
+4. Leave workflow, persistence, and side-effect coordination where they belong.
+5. Remove duplicated checks after all affected paths use the owner.
 
-## Recipe 3: Extracting a Separate Repository
+Do not enrich data-only models without a real invariant.
 
-**When:** An entity's persistence methods are on the wrong aggregate's repository.
+## Reshape a Boundary
 
-1. Define the port protocol in `ports/{entity}.py`
-2. Create the adapter in `adapters/persistence/{entity}_repository.py`
-3. Add re-export to `ports/__init__.py`
-4. **GREP ALL CONSUMERS** — every use case, every factory, every test
-5. Add the new repository parameter to each consumer's `__init__`
-6. Update ALL composition root factories (including nested ones!)
-7. Remove methods from the original repository protocol
-8. Remove methods from the original repository adapter
-9. Run tests
+**Evidence:** A module has unrelated change reasons, ownership conflict, an unstable cycle, or consumers must coordinate fragmented contracts.
 
-**Critical pitfall:** Nested factories are easy to miss. If your auth factory builds access use cases, it needs the new repository too. Type checker errors will reveal missed consumers — run it before trusting "done."
+1. Map callers, dependencies, ownership, and compatibility needs.
+2. Choose one cohesive responsibility to extract, merge, or expose.
+3. Preserve stable public behavior only where actual consumers require it.
+4. Move a narrow consumer slice and verify representative behavior.
+5. Remove transitional code when no required consumer remains.
 
-## Recipe 4: Eliminating `# type: ignore`
+Do not use line count or one-unit-per-file as evidence.
 
-| Pattern | Diagnosis | Fix |
-| ------- | --------- | --- |
-| `_env_file=path  # type: ignore[call-arg]` | Framework kwarg not in stubs | `env_kwargs: dict[str, Any] = {}; if path: env_kwargs["_env_file"] = path; super().__init__(**env_kwargs)` |
-| `response.data[0]  # type: ignore[assignment]` | Nullable not narrowed after check | Assign to local: `data = response.data; if not data: return None; row = data[0]` |
-| `.value  # type: ignore[union-attr]` | Optional attribute access | Assert non-None: `assert bale.delivery_date is not None` |
-| `result.rowcount > 0  # type: ignore[union-attr]` | Generic result type | Annotate: `result: CursorResult[Any] = session.execute(stmt)` |
-| `row: dict = data[0]  # type: ignore[assignment]` | Untyped third-party return | `cast(dict[str, Any], data[0])` |
+## Introduce or Remove a Port
 
-**Principle:** Every type suppression is an architecture smell. Fix the contract.
+**Evidence to introduce:** A meaningful volatility, ownership, process, or testability seam exists.
 
-## Recipe 5: Enriching an Anemic Entity
+**Evidence to remove:** The contract mirrors one implementation and provides no independent evolution.
 
-**When:** Application services directly mutate entity fields.
+1. Define the consumer's required semantics, including errors and absence.
+2. Choose interaction style and granularity from runtime needs.
+3. Adapt one implementation and migrate consumers incrementally.
+4. Trace composition and lifecycle changes.
+5. Reassess whether the seam now earns its maintenance cost.
 
-1. Identify all field mutations in application services (`entity.field = value`)
-2. Group related mutations into business actions (deactivate, revoke, grant)
-3. Create the behavior method on the entity with:
-   - Idempotency guard (if appropriate)
-   - Version bump
-   - Timestamp update (via `at` parameter)
-   - Domain error on invariant violation
-4. Create the domain error class if needed
-5. Replace inline mutations in use cases with method calls
-6. Add unit tests for the new behavior (including idempotency and guards)
-7. Run full test suite
+Do not create repositories per entity or interfaces per class by convention.
 
-**Pitfall:** Test factories may construct entities with positional args. Keep `__init__` signature compatible (add methods, don't change construction).
+## Simplify Composition
 
-## Recipe 6: Converting Dict Provider to Typed Container
+**Evidence:** Wiring hides dependencies, mishandles lifetimes, repeats inconsistently, or contains factory/container ceremony without benefit.
 
-**When:** A composition factory returns `dict[str, Any]` with use cases.
+1. Trace one entry point from configuration through resource cleanup.
+2. Make dependencies and ownership visible at the narrowest composition point.
+3. Extract shared construction only when repetition causes drift.
+4. Remove forwarding factories or containers that add no guarantee.
+5. Verify startup, failure, representative execution, and shutdown behavior.
 
-1. Create a frozen dataclass in `application/containers.py`
-2. Add all dict keys as typed attributes
-3. Update the factory return type and construct the dataclass
-4. Update all consumers: `use_cases["key"]` → `use_cases.key`
-5. Update helper functions that received `dict` to receive the container type
-6. Remove unused individual imports from consumers (the container carries them)
-7. Run tests
+## Change a Context Relationship
+
+**Evidence:** Shared meaning, ownership, or independent evolution has changed.
+
+1. Confirm semantics and owners on both sides.
+2. Compare shared ownership, translation, versioned messages, deliberate duplication, and context merge.
+3. Migrate one contract or concept with explicit compatibility needs.
+4. Verify both local meaning and integration behavior.
+5. Define how transitional coupling will be removed.
+
+See [SHARED-KERNEL.md](SHARED-KERNEL.md) for relationship tradeoffs. No recipe implies a full rewrite; widen scope only when evidence shows the change cannot remain coherent otherwise.

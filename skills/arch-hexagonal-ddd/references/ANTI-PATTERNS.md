@@ -1,89 +1,18 @@
-# Anti-Pattern Detection
+# Diagnostic Signals
 
-## Anemic Domain Model
+Use these as hypotheses, not automatic violations. Confirm the symptom, identify the cost, look for counter-signals, and apply the smallest reversible change consistent with `../SKILL.md`.
 
-**Signals:**
+| Suspected problem | Evidence to seek | Counter-signals | Small response |
+| --- | --- | --- | --- |
+| Infrastructure controls business policy | Rules import concrete technology, framework changes alter policy, or tests require infrastructure unnecessarily | The code is an edge adapter or the technology is intentionally part of the business capability | Isolate one leaking decision behind an existing or narrowly introduced seam. |
+| Domain behavior is misplaced | Rules are duplicated, callers interpret state differently, or related mutations can bypass an invariant | The area is data-centric with no meaningful invariant, or the code is workflow orchestration | Move one proven rule to its natural owner and protect it with focused tests. |
+| Abstraction is speculative | Interface mirrors one implementation, factories only forward constructors, or layers add navigation without independent evolution | A real ownership, volatility, testing, or compatibility seam exists | Inline or merge the uneconomical boundary while preserving consumers that require compatibility. |
+| Contract leaks implementation | Consumers depend on vendor semantics or concrete runtime types and replacement causes broad changes | The contract intentionally belongs to that technology-specific boundary | Translate only the semantics that business-facing consumers need. |
+| Boundary is too coarse or too fragmented | Unrelated changes collide, consumers coordinate many tiny contracts, or ownership is unclear | Components change together and the current boundary is cohesive | Split or merge around observed responsibility and change pressure. |
+| Repository model is ceremonial | Repositories exist per data type without consistency or ownership rationale | A repository protects meaningful persistence semantics or aggregate consistency | Remove forwarding repositories or reshape the contract around the actual capability. |
+| Composition is hidden or overbuilt | Runtime lookup obscures dependencies, lifetimes leak, or container/factory code dominates wiring | The tool materially manages complex scopes, generated graphs, or multiple runtimes | Make one dependency path and lifecycle explicit before replacing the mechanism. |
+| Transaction boundary mismatches consistency | Partial failure violates a business rule, contention is excessive, or unrelated work is coupled | Atomicity is genuinely required and supported at acceptable cost | Adjust the narrowest consistency boundary; do not impose aggregate or event rules universally. |
+| Organization impedes evolution | Ownership conflicts, unrelated changes cluster, cycles spread, or capability navigation is costly | A large unit remains cohesive and easy to change | Move or split one cohesive responsibility; do not reorganize the whole tree. |
+| Refactor left incomplete consumers | Broken contracts, stale calls, unwired dependencies, or failing representative paths | Compatibility is deliberately retained and tested | Trace the changed contract through consumers, composition, and tests; remove only confirmed orphans. |
 
-- Application services with `entity.field = value` patterns
-- Business rules implemented in services, not entities
-- Entities with only getters/properties and no mutation methods
-- Version bumps done by the caller, not the entity
-
-**Fix:** Move behavior INTO entities. See DOMAIN-RICHNESS.md.
-
-## Leaking Infrastructure
-
-**Signals:**
-
-- Domain error classes referencing HTTP status codes
-- Port protocols using framework-specific types
-- Application services importing from adapter packages
-- Domain entities with ORM decorators/base classes
-- Technology names in domain/port layer modules
-
-**Fix:** Extract framework concerns to adapters. Ports use only domain types.
-
-## Namespace Violations
-
-**Signals:**
-
-- Importing from another bounded context's internal modules
-- Technology/library names in domain or port class names
-- Adapter classes used directly in application services (bypassing port)
-
-**Fix:** Use shared kernel for cross-context types. Use ACL adapters for
-cross-context communication. Rename to business vocabulary.
-
-## Orphan Code After Refactoring
-
-**Signals:**
-
-- Type checker errors on removed methods (e.g., `save_assignment` on a repo that no longer has it)
-- Import paths that no longer resolve
-- Dict key access on a refactored typed container
-- Methods on a protocol that no adapter implements
-- Wiring in bootstrap that constructs use cases without new required parameters
-
-**Fix:** After every port/repository change, grep ALL consumers including
-nested factories. Type checker errors are your friend — they reveal missed consumers.
-
-## Fat Files
-
-**Signals:**
-
-- Multiple unrelated protocols in one ports file (>200 lines)
-- Multiple adapter classes in one file (>200 lines)
-- A composition root function exceeding 100 lines
-
-**Fix:** Split into one-file-per-concern. See FILE-ORGANIZATION.md and REFACTORING-RECIPES.md.
-
-## Repository Per Entity
-
-**Signals:**
-
-- Multiple repositories for entities within the same aggregate
-- Repository methods for child entities on the aggregate root's repository
-
-**Fix:** One repository per AGGREGATE. If an entity has independent lifecycle,
-it's its own aggregate — give it its own repository and port.
-
-## Stringly-Typed Providers
-
-**Signals:**
-
-- `dict[str, Any]` as use case container
-- `use_cases["create_role"]` string-key access
-- No compile-time verification of container contents
-
-**Fix:** Frozen dataclass container. See COMPOSITION-ROOT.md.
-
-## Cross-Aggregate Transaction
-
-**Signals:**
-
-- Multiple aggregates loaded and saved in one transaction
-- Use case modifying entities from different aggregate roots atomically
-
-**Fix:** One aggregate per transaction. Use domain events for eventual
-consistency across aggregates. Only exception: if business absolutely
-requires atomicity and the cost of eventual consistency is unacceptable.
+Avoid diagnosing from naming, line count, file count, number of classes, or use of a particular pattern alone. Report evidence and expected benefit, not architecture labels. See [DOMAIN-RICHNESS.md](DOMAIN-RICHNESS.md), [PORT-CONTRACTS.md](PORT-CONTRACTS.md), and [COMPOSITION-ROOT.md](COMPOSITION-ROOT.md) for focused guidance.

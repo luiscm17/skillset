@@ -1,67 +1,38 @@
-# Dependency Rule
+# Dependency Direction
 
-Dependencies point **inward only**. Outer layers depend on inner layers, never the reverse.
+Use `../SKILL.md` as the canonical policy. Dependency direction protects business policy from concrete infrastructure and allows each side of a meaningful boundary to evolve and be tested independently. It does not require named layers or a fixed hierarchy.
 
-## Layer Hierarchy
+## Analyze Dependencies by Responsibility
 
-```text
-bootstrap (composition root) → knows everything
-adapters (infrastructure)    → knows application + domain + ports
-application (use cases)      → knows domain + ports
-ports (contracts)            → knows domain only
-domain (core)                → knows NOTHING external
-```
+For each dependency, identify:
 
-## Allowed and Forbidden Imports
+- which side owns the business decision or contract;
+- which side contains a replaceable technical detail;
+- what change pressure the dependency transmits;
+- whether compile-time, runtime, data, or operational coupling is involved;
+- whether the boundary provides enough independence to justify its cost.
 
-| Layer | May Import From | Must NOT Import From |
-| ----- | --------------- | -------------------- |
-| domain | stdlib only | application, ports, adapters, bootstrap, infra, ANY framework |
-| ports | domain | application, adapters, bootstrap, infra, ANY framework |
-| application | domain, ports | adapters, bootstrap, ANY framework |
-| adapters | domain, ports, application, frameworks | bootstrap (circular) |
-| bootstrap | everything | (it's the root) |
+Source-code imports are useful evidence but not the whole architecture. Generated code, schemas, callbacks, configuration, deployment coupling, shared storage, and runtime lookup can also reverse or bypass an intended boundary.
 
-## Verification Script (Python Example)
+## Decision Guide
 
-```python
-import ast
-from pathlib import Path
+| Evidence | Response |
+| --- | --- |
+| Business policy imports or exposes a concrete technology | Move the technical decision outward or introduce a business-facing contract at the actual seam. |
+| A stable policy depends directly on a volatile collaborator | Invert that dependency when independent replacement or testing matters. |
+| Two cohesive modules evolve together and abstraction adds forwarding only | Keep the direct dependency or merge the artificial boundary. |
+| A framework controls an entry point | Let the framework own the edge while delegating business decisions to infrastructure-independent code. |
+| A shared representation couples independent owners | Translate, version, or assign explicit ownership according to the required relationship. |
+| A cycle reflects mutual business responsibility | Revisit ownership and module boundaries before adding an interface mechanically. |
 
-LAYER_RULES = {
-    "domain": ["application", "adapters", "ports", "bootstrap", "infra", "fastapi", "sqlalchemy", "pydantic"],
-    "ports": ["application", "adapters", "bootstrap", "infra", "fastapi", "sqlalchemy"],
-    "application": ["adapters", "bootstrap", "fastapi", "sqlalchemy"],
-}
+## Verification
 
-def check_violations(src: Path, context: str) -> list[str]:
-    violations = []
-    for f in src.rglob("*.py"):
-        parts = str(f.relative_to(src)).split("/")
-        layer = next((p for p in parts if p in LAYER_RULES), None)
-        if not layer:
-            continue
-        tree = ast.parse(f.read_text())
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                for forbidden in LAYER_RULES[layer]:
-                    if node.module.startswith(forbidden):
-                        violations.append(f"{f}:{node.lineno} → {node.module}")
-    return violations
-```
+Trace representative business behavior from entry point to side effects. Confirm that:
 
-## Common Violations and Fixes
+- business rules can be exercised without starting concrete infrastructure;
+- changing a technical mechanism does not require rewriting unrelated policy;
+- contracts are owned by the side whose needs they express;
+- dependency cycles and boundary crossings have an intentional reason;
+- architecture tests, import rules, or static analysis reflect the project's actual module model rather than assumed folder names.
 
-| Violation | Example | Fix |
-| --------- | ------- | --- |
-| Domain imports ORM | `from sqlalchemy import Column` in entity | Use plain dataclass; map in adapter |
-| Port imports framework type | `Session` in protocol signature | Use abstract types; inject session in adapter |
-| Application imports adapter | `from adapters.persistence import Repo` | Import the PORT protocol instead |
-| Domain imports port | `from ports.users import UserRepo` in entity | Entity receives collaborators via method args, not imports |
-
-## The Litmus Test
-
-> "Create your application to work without either a UI or a database."
-> — Alistair Cockburn
-
-If you can instantiate your domain objects and run business logic from a plain unit test with zero infrastructure, your boundaries are correct.
+Do not infer correctness from a pure unit test alone. A design may still hide data, deployment, or ownership coupling. Report the dependency, the protected quality, the evidence, and the smallest change that improves it.

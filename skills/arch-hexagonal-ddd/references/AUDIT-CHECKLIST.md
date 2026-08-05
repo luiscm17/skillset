@@ -1,75 +1,52 @@
-# Architecture Audit Checklist
+# Architecture Audit
 
-Run this after every structural change. Each section maps to a layer.
+Use only for an explicitly requested full audit. Inspect all relevant areas sequentially, gather evidence, and produce one prioritized, deduplicated result. Do not delegate or launch work per question. `../SKILL.md` remains canonical.
 
-## Layer 1: Domain
+## Establish Scope
 
-- [ ] Entities have behavior methods (not just data fields)
-- [ ] Behavior methods are idempotent where business semantics allow
-- [ ] Invariants are enforced inside entities (not in application services)
-- [ ] No framework imports (stdlib only)
-- [ ] No Optional where state is guaranteed post-construction
-- [ ] Domain errors are specific and named after the business rule violated
-- [ ] Value objects are immutable (frozen dataclass)
-- [ ] No technology/library names in class or module names
+- Record the requested outcome, current architecture vocabulary, ecosystem constraints, compatibility obligations, and available verification.
+- Select representative business paths and boundaries; do not assume named layers or a fixed project structure.
+- Record which contextual heuristics or opt-in policies the project has actually chosen.
 
-## Layer 2: Ports
+## Evidence Questions
 
-- [ ] Return types are fully specified (no bare `list`, no `Any`)
-- [ ] One file per protocol
-- [ ] No framework types (no Session, no Response, no Engine)
-- [ ] Ports describe WHAT (business intent), never HOW (implementation)
-- [ ] Protocol methods use domain types exclusively
-- [ ] No `Optional` leaking where the domain guarantees a value
+### Business Policy
 
-## Layer 3: Application
+- Can important business rules run without concrete infrastructure?
+- Are real invariants enforced consistently at a clear owner?
+- Is domain richness proportional, including deliberately simple data-centric areas?
+- Do consistency, transaction, time, identity, and concurrency decisions match requirements?
 
-- [ ] Use cases call entity behavior (not inline field mutation)
-- [ ] One file per use case
-- [ ] No adapter imports (only ports and domain)
-- [ ] Transaction boundary is at the use case level
-- [ ] Use case reads like a script: load → call behavior → save → side effects
-- [ ] DTOs are plain dataclasses (no framework decorators)
+### Boundaries and Dependencies
 
-## Layer 4: Adapters
+- What ownership, volatility, or independent-evolution need does each significant boundary protect?
+- Do dependencies carry concrete infrastructure into business policy?
+- Are cycles, shared data, runtime lookup, or deployment coupling bypassing intended direction?
+- Are ports cohesive and justified, with clear success, absence, error, and interaction semantics?
+- Are shared models governed explicitly, or would translation or duplication preserve autonomy better?
 
-- [ ] One file per adapter class
-- [ ] No `# type: ignore` in any adapter
-- [ ] Each adapter implements exactly one port protocol
-- [ ] Framework-specific types stay inside adapters (never leak to ports)
-- [ ] ORM records are separate from domain entities
-- [ ] Mapping between domain and persistence is explicit
+### SOLID and Patterns
 
-## Layer 5: Composition Root
+- Does each abstraction solve observed coupling, cohesion, substitution, or extension pressure?
+- Are interfaces, repositories, factories, containers, layers, or patterns speculative or ceremonial?
+- Can any boundary be removed or merged without losing independence or testability?
 
-- [ ] Typed containers for use case providers (no `dict[str, Any]`)
-- [ ] All consumers wired (grep for old method calls after any port change)
-- [ ] No orphan code (every use case wired, every port has an adapter)
-- [ ] One factory file per bounded context
-- [ ] Shared infra (Clock, Identity) not duplicated across factories
+### Organization and Composition
 
-## Cross-Cutting Verification
+- Can maintainers find capabilities and ownership boundaries using project-native conventions?
+- Do modules change for cohesive reasons, and can independently evolving areas remain independent?
+- Are implementation selection, configuration, wiring, lifecycle, and cleanup visible at system edges?
+- After contract changes, are affected consumers and composition points complete?
 
-- [ ] Zero dependency rule violations
-- [ ] Zero `# type: ignore` in `src/` (tests exempt)
-- [ ] No technology names in domain or port layers
-- [ ] No cross-context imports (use shared kernel or ACL adapter)
-- [ ] All tests pass (unit + integration)
-- [ ] No orphan references (grep for removed method names)
-- [ ] Re-export files exist after every file split (backward compat)
+## Findings Contract
 
-## Automated Verification Commands
+For each finding, report:
 
-```bash
-# Zero type suppressions
-grep -r "type: ignore" src/
+- observed evidence and affected path;
+- violated core invariant or selected contextual policy;
+- concrete cost or risk;
+- counter-signals and relevant constraints;
+- smallest reversible improvement;
+- focused verification and residual risk.
 
-# Dependency rule (requires AST script from DEPENDENCY-RULE.md)
-python check_dependencies.py
-
-# Orphan method references
-grep -rn "old_method_name" src/
-
-# All tests
-python -m unittest discover -s tests -v
-```
+Deduplicate findings by root cause. Prioritize invariant violations and demonstrated change cost over naming or style. Do not flag file size, one-unit-per-file, repository-per-entity, aggregate transaction style, strict typing, framework isolation, immutable containers, or compatibility shims unless the project selected that policy or evidence shows a concrete problem.
