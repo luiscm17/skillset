@@ -22,7 +22,7 @@ Use for frontend architecture design, organization, audit, migration, boundary c
 - Assign one canonical owner and source to every responsibility and value. Derive state instead of synchronizing duplicates.
 - Separate responsibility zones inside a capability only as evidence requires: public contract, policy or orchestration, presentation, state, adapters, and integration are concepts, not mandatory layers or directories.
 - Require observed ownership, coupling, lifecycle, or change pressure for abstractions and stronger boundaries. Preserve bounded, one-directional migrations with explicit retirement proof.
-- Preserve ecosystem idioms and technology independence. Use one architecture worker by default; delegate only independent uncertainty at depth one, then synthesize one decision.
+- Preserve ecosystem idioms and technology independence. Use one architecture worker by default; delegate only one independently resolvable sub-question at depth one (no further nesting), then synthesize one decision.
 - Treat the gates below as canonical. Load at most two references by default; a full audit may load all references sequentially.
 
 ## Decision Gates
@@ -52,6 +52,13 @@ Use for frontend architecture design, organization, audit, migration, boundary c
 ## Output Contract
 
 Return activation fit; scope and evidence; capability and ownership map; invariant violations versus contextual improvements; selected opt-in policies; findings or changes by priority; illustrative organization only when useful; contract and dependency effects; migration and retirement conditions; verification evidence; intentionally flexible structures; unresolved risks.
+
+## Worker Policy
+
+- One architecture worker handles the full task by default.
+- Delegate only when a sub-question is independently resolvable and its answer feeds back into a single synthesis. Maximum one delegation at depth one per task.
+- Never spawn parallel workers for reference loading. Load references inline, sequentially, and only the minimum needed.
+- A full audit loads all references in one sequential pass by the same worker, never distributed across workers.
 
 ## References
 
