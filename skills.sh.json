@@ -6,7 +6,8 @@
       "title": "Architecture",
       "description": "Hexagonal architecture and Domain-Driven Design operational guidance.",
       "skills": [
-        "arch-hexagonal-ddd"
+        "arch-hexagonal-ddd",
+        "frontend-arch"
       ]
     }
   ]
