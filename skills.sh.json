@@ -9,6 +9,13 @@
         "arch-hexagonal-ddd",
         "frontend-arch"
       ]
+    },
+    {
+      "title": "Authorization",
+      "description": "Authorization policy design and review guidance.",
+      "skills": [
+        "rbac-policy-design"
+      ]
     }
   ]
 }
