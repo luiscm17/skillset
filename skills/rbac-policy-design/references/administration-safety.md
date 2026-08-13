@@ -42,7 +42,7 @@ PREVIEW_AND_APPLY(actor, draft, observed_revision):
 
 This sequence expresses safety properties, not a required interface, transaction mechanism, or user-interface shape.
 
-## Product-Selected Invariants
+## Core Administration Invariants
 
 Last-administrator and break-glass protections are valuable only when the product defines their meaning. Do not invent a universal administrator role, reserved name, hidden superuser, or permanent bypass.
 
@@ -54,6 +54,10 @@ When selected, specify:
 - initialization, recovery, rotation, monitoring, and revocation rules;
 - whether emergency access bypasses normal policy and how that use is reviewed.
 
+Define revocation effective time: when new decisions must deny, how cached allows are invalidated, and how in-flight or delayed operations are handled. A successful policy write is not sufficient if enforcement points may continue granting beyond the stated bound.
+
+Treat capability or bundle rename, split, merge, deprecation, and membership changes as migrations, not label edits. Preview old-to-new mappings and effective authority deltas; version bundles; preserve stable audit lineage; reject partial, mixed-version, or ambiguous conversion; and provide a verified rollback or forward-correction plan.
+
 ## Audit Policy
 
 Record policy changes with actor, subject or policy target, change type, before state, after state, and time. Include policy version and correlation context when available. Keep authentication secrets and unrelated personal data out of policy audit.
@@ -62,12 +66,14 @@ Choose reason handling explicitly: optional, required for selected high-impact c
 
 Define audit access, retention, integrity, export, and review ownership. Audit should support reconstruction of effective-policy changes without exposing more subject information than reviewers need.
 
-## Neutral Administration Principles
+## Optional Human-Facing Guidance
+
+Apply only when the system has human-facing administration; do not infer or prescribe an interface.
 
 - Describe consequences in plain language and expose exact policy facts for verification.
 - Do not rely on color, iconography, pointer interaction, or visual placement alone to communicate risk or state.
 - Make confirmation deliberate and reversible where policy permits; identify irreversible consequences.
-- Keep unavailable operations visible only when that helps understanding, and make them explicitly non-interactive with a reason. Otherwise omit them.
+- If unavailable operations are represented, make their status and reason unambiguous; otherwise omit them.
 - Do not render a functional-looking placeholder for a missing owner/provider contract.
 - Limit previews and audit views to authorized viewers and necessary subject data.
-- Preserve stable focus, readable ordering, and equivalent non-visual access without prescribing a UI framework.
+- Provide equivalent accessible understanding and operation without making presentation behavior part of policy semantics.
